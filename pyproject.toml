@@ -10,4 +10,6 @@ dependencies = [
     "langchain-openai>=1.6.3",
     "langgraph>=1.2.12",
     "langgraph-cli[inmem]>=0.4.31",
+    "numpy>=2.5.3",
+    "python-dotenv>=1.2.3",
 ]
