@@ -1,0 +1,38 @@
+{
+  "id": "toss",
+  "name": "Toss",
+  "one_line": "고객 문제 해결을 최우선으로 하는 빠른 실행 중심의 조직",
+  "core_values": [
+    "실력주의",
+    "자율과 책임",
+    "빠른 실행",
+    "근거 기반의 논쟁"
+  ],
+  "work_style": "신속한 의사결정과 실행을 중시하며, 자율적으로 업무를 수행하는 환경",
+  "decision_making": "데이터 기반의 논리적 주장과 치열한 논쟁을 통해 결정",
+  "traits": {
+    "pace_preference": 5,
+    "autonomy_preference": 5,
+    "hierarchy_tolerance": 2,
+    "risk_tolerance": 4,
+    "collaboration_style": 4,
+    "growth_ambition": 5
+  },
+  "who_thrives": [
+    "빠른 실행과 자율성을 중시하는 인재",
+    "논리적이고 데이터 기반의 의사소통을 선호하는 인재",
+    "도전적이고 과감한 시도를 즐기는 인재"
+  ],
+  "who_leaves_early": [
+    "정해진 프로세스를 선호하는 인재",
+    "지속적인 긴장 상태에 스트레스를 느끼는 인재",
+    "직설적인 피드백을 받아들이기 어려운 인재"
+  ],
+  "generated_from": [
+    "01_official_values.txt",
+    "02_news_summary.txt",
+    "03_employee_review_summary.txt",
+    "04_job_posting_excerpt.txt"
+  ],
+  "generation_method": "RAG 소스 문서 + LLM 구조화 추출"
+}
