@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
-load_dotenv()  # .env 파일의 환경변수(OPENAI_API_KEY 등)를 메모리로 불러옴
-
+load_dotenv() 
 import os
 import glob
 from functools import lru_cache
