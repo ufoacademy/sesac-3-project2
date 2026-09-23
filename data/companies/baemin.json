@@ -6,17 +6,17 @@
     "자율적 책임",
     "유연한 소통",
     "신속한 실행",
-    "혁신과 도전",
+    "혁신적 도전",
     "팀워크와 협력"
   ],
-  "work_style": "자율적이고 유연한 환경에서 빠른 실행을 중시하며, 직급에 관계없이 자유롭게 의견을 제시하는 문화를 지향한다.",
-  "decision_making": "데이터 기반의 논리적 주장과 설득을 통해 이루어지며, 실패를 두려워하지 않고 반복적인 시도를 장려한다.",
+  "work_style": "자율적이고 유연한 환경에서 빠르게 실행하며, 직급에 관계없이 의견을 자유롭게 제시하는 문화",
+  "decision_making": "데이터 기반의 논리적 주장과 설득을 통해 이루어지며, 실패를 두려워하지 않고 반복적인 시도를 장려하는 방식",
   "traits": {
     "pace_preference": 4,
     "autonomy_preference": 5,
     "hierarchy_tolerance": 2,
     "risk_tolerance": 4,
-    "collaboration_style": 3,
+    "collaboration_style": 4,
     "growth_ambition": 3
   },
   "who_thrives": [
@@ -25,9 +25,9 @@
     "신속한 실행과 도전을 즐기는 사람"
   ],
   "who_leaves_early": [
-    "명확한 지시와 프로세스를 선호하는 사람",
-    "과도한 안정성을 추구하는 사람",
-    "높은 성과 압박을 견디기 힘든 사람"
+    "구체적인 지시와 프로세스를 선호하는 사람",
+    "과도한 성과 압박을 느끼는 사람",
+    "위계적인 조직문화를 선호하는 사람"
   ],
   "generated_from": [
     "01_official_values.txt",
