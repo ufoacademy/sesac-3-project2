@@ -1,17 +1,35 @@
-from typing import Annotated, Sequence, Optional, Dict, Any
-from typing_extensions import TypedDict
+from typing import Annotated, Any, Sequence
+
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+from typing_extensions import TypedDict
 
-class State(TypedDict):
-    # 대화 기록 (Studio Chat UI 지원)
-    messages: Annotated[Sequence[BaseMessage], add_messages]
-    
-    # 분석 대상 기업명 (예: toss, hyundai, baemin)
-    selected_company: Optional[str]
-    
-    # 로드된 기업 문화 데이터
-    company_data: Optional[Dict[str, Any]]
-    
-    # 조기 퇴사 위험 및 조직 적합도 분석 결과
-    analysis_report: Optional[str]
+
+class State(TypedDict, total=False):
+    # LangGraph Studio에서 사용할 수 있는 대화 기록
+    messages: Annotated[
+        Sequence[BaseMessage],
+        add_messages,
+    ]
+
+    # 사용자가 입력하는 값
+    selected_company: str
+    application_path: str
+    scenario_answers: dict[str, str]
+    db_path: str
+
+    # 각 노드가 처리하면서 만드는 중간 결과
+    application_text: str
+    company_data: dict[str, Any]
+    company_evidence: list[dict[str, str]]
+    candidate_profile: dict[str, Any]
+    fit_result: dict[str, Any]
+
+    # 사용자에게 보여주고 저장할 최종 결과
+    final_report: dict[str, Any]
+    analysis_id: int
+
+    # 실행 상태와 오류 처리
+    retry_count: int
+    status: str
+    error: str | None

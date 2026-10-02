@@ -11,5 +11,8 @@ dependencies = [
     "langgraph>=1.2.12",
     "langgraph-cli[inmem]>=0.4.31",
     "numpy>=2.5.3",
+    "pypdf>=6.19.0",
     "python-dotenv>=1.2.3",
+    "reportlab>=5.0.1",
+    "streamlit>=1.64.0",
 ]

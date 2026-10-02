@@ -1,5 +1,6 @@
-from typing import Literal, List
-from pydantic import BaseModel, Field
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class TraitScores(BaseModel):
@@ -31,3 +32,108 @@ class FitAssessment(BaseModel):
     turnover_risk: Literal["낮음", "중간", "높음"] = Field(description="조기 퇴사 위험도")
     key_reasons: List[str] = Field(description="점수와 위험도 판단 근거 2~4개")
     onboarding_tip: str = Field(description="이 지원자가 해당 기업에 적응하기 위한 조언 한 문장")
+
+
+DimensionId = Literal[
+    "pace_preference",
+    "autonomy_preference",
+    "hierarchy_tolerance",
+    "risk_tolerance",
+    "collaboration_style",
+    "growth_ambition",
+]
+
+
+DIMENSION_IDS = {
+    "pace_preference",
+    "autonomy_preference",
+    "hierarchy_tolerance",
+    "risk_tolerance",
+    "collaboration_style",
+    "growth_ambition",
+}
+
+
+class CandidateDimension(BaseModel):
+    dimension_id: DimensionId
+
+    score: Optional[float] = Field(
+        default=None,
+        ge=1,
+        le=5,
+    )
+
+    confidence: float = Field(
+        ge=0,
+        le=1,
+    )
+
+    evidence_quote: Optional[str] = None
+
+    evidence_source: Literal[
+        "application",
+        "scenario",
+        "missing",
+    ]
+
+    reasoning: str
+
+    status: Literal[
+        "observed",
+        "missing",
+    ]
+
+    follow_up_question: str
+
+    @model_validator(mode="after")
+    def validate_status_and_evidence(self):
+        if self.status == "observed":
+            if self.score is None:
+                raise ValueError(
+                    "근거가 있는 문화축에는 점수가 필요합니다."
+                )
+
+            if not self.evidence_quote:
+                raise ValueError(
+                    "근거가 있는 문화축에는 원문 인용이 필요합니다."
+                )
+
+            if self.evidence_source == "missing":
+                raise ValueError(
+                    "근거가 있는 문화축의 출처는 missing일 수 없습니다."
+                )
+
+        if self.status == "missing":
+            if self.score is not None:
+                raise ValueError(
+                    "근거가 없는 문화축의 점수는 비워야 합니다."
+                )
+
+            if self.evidence_source != "missing":
+                raise ValueError(
+                    "근거가 없는 문화축의 출처는 missing이어야 합니다."
+                )
+
+        return self
+
+
+class CandidateCultureProfile(BaseModel):
+    summary: str
+    dimensions: List[CandidateDimension]
+
+    @model_validator(mode="after")
+    def require_all_six_dimensions(self):
+        dimension_ids = [
+            item.dimension_id
+            for item in self.dimensions
+        ]
+
+        if (
+            len(dimension_ids) != 6
+            or set(dimension_ids) != DIMENSION_IDS
+        ):
+            raise ValueError(
+                "지원자 프로필에는 서로 다른 6개 문화축이 필요합니다."
+            )
+
+        return self
