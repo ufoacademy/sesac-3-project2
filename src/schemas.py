@@ -220,8 +220,80 @@ class CandidateDimension(BaseModel):
 
 
 class CandidateCultureProfile(BaseModel):
-    summary: str
-    dimensions: List[CandidateDimension]
+    summary: str = Field(
+        description="지원자 조직문화 성향 1~2문장 종합 요약문"
+    )
+    dimensions: List[CandidateDimension] = Field(
+        description="6개 문화축 분석 결과 목록"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_profile(cls, data: Any) -> Any:
+        """LLM이 summary 필드를 누락하거나 dimensions 키를 다른 이름으로 반환할 때 안전하게 자동 보정한다."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+
+        # 1. dimensions 필드 키 별칭 대응 (culture_dimensions, traits 등)
+        raw_dims = (
+            normalized.get("dimensions")
+            or normalized.get("culture_dimensions")
+            or normalized.get("traits")
+            or []
+        )
+        if not isinstance(raw_dims, list):
+            raw_dims = []
+
+        # 2. summary 필드 누락 보정 (overview, description 등 별칭 확인 후 미제공 시 자동 합성)
+        summary = (
+            normalized.get("summary")
+            or normalized.get("candidate_summary")
+            or normalized.get("overview")
+            or normalized.get("description")
+        )
+        if not summary:
+            observed_count = sum(
+                1
+                for d in raw_dims
+                if isinstance(d, dict) and d.get("status") == "observed"
+            )
+            summary = (
+                f"지원자 6대 업무문화축 분석 완료 (관찰된 근거: {observed_count}개 축)"
+                if raw_dims
+                else "지원자 업무 성향 및 문화 적합도 종합 분석 결과입니다."
+            )
+        normalized["summary"] = str(summary)
+
+        # 3. 6개 문화축 중 빠진 축이 있는 경우 자동으로 missing 항목으로 보충하여 충돌 방지
+        present_ids = {
+            d.get("dimension_id")
+            for d in raw_dims
+            if isinstance(d, dict) and "dimension_id" in d
+        }
+        for dim_id in sorted(DIMENSION_IDS):
+            if dim_id not in present_ids:
+                raw_dims.append(
+                    {
+                        "dimension_id": dim_id,
+                        "score": None,
+                        "confidence": 0.0,
+                        "evidence_quote": None,
+                        "evidence_source": "missing",
+                        "reasoning": (
+                            "LLM 분석 결과에서 해당 문화축이 누락되어 정보 부족으로 자동 처리되었습니다."
+                        ),
+                        "status": "missing",
+                        "follow_up_question": DEFAULT_FOLLOW_UP_QUESTIONS.get(
+                            dim_id,
+                            "이 문화축과 관련된 구체적인 경험을 말씀해 주세요.",
+                        ),
+                    }
+                )
+
+        normalized["dimensions"] = raw_dims
+        return normalized
 
     @model_validator(mode="after")
     def require_all_six_dimensions(self):
