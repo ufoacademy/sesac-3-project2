@@ -198,6 +198,7 @@ def find_best_matching_quote(
     best_sentence = ""
     best_similarity = 0.0
 
+    # 2-1단계: 단일 문장 매칭
     for sentence in sentences:
         sentence_bigrams = _extract_char_bigrams(sentence)
         if not sentence_bigrams:
@@ -211,6 +212,29 @@ def find_best_matching_quote(
 
     if best_similarity >= threshold:
         return True, best_sentence, best_similarity
+
+    # 2-2단계: 인접한 2문장 슬라이딩 윈도우 매칭 (불릿 포인트 및 복합 구절 인용 대응)
+    for i in range(len(sentences) - 1):
+        window = sentences[i] + " " + sentences[i + 1]
+        window_bigrams = _extract_char_bigrams(window)
+        if not window_bigrams:
+            continue
+        intersection = quote_bigrams & window_bigrams
+        similarity = len(intersection) / len(quote_bigrams)
+
+        if similarity > best_similarity:
+            best_similarity = similarity
+            best_sentence = window
+
+    if best_similarity >= threshold:
+        return True, best_sentence, best_similarity
+
+    # 2-3단계: 문서 전체 바이그램 포함율 검사 (여러 항목에 흩어진 경력 요약 인용 대응)
+    source_bigrams = _extract_char_bigrams(normalized_source)
+    if source_bigrams:
+        doc_overlap = len(quote_bigrams & source_bigrams) / len(quote_bigrams)
+        if doc_overlap >= threshold:
+            return True, best_sentence or quote, doc_overlap
 
     return False, "", best_similarity
 
