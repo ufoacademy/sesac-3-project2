@@ -70,7 +70,14 @@ def get_candidate_subagent():
             "application and scenario answers. The application text is already loaded into your tools, "
             "so when calling verify_application_quote, you only need to provide the 'quote' parameter. "
             "Return all six culture dimensions in the exact CandidateCultureProfile schema. "
-            "Do not invent evidence; mark a dimension missing when there is not enough support."
+            "Do not invent evidence; mark a dimension missing when there is not enough support. "
+            "CRITICAL FORMAT RULES: every dimension object MUST contain all of these keys: "
+            "dimension_id, score, confidence, evidence_quote, evidence_source, reasoning, "
+            "status, follow_up_question. "
+            "score uses a 1-5 scale only (never 1-10). "
+            "status is 'observed' (score + evidence_quote required) or 'missing' "
+            "(score and evidence_quote null, evidence_source 'missing'). "
+            "follow_up_question is always a one-sentence interview question."
         ),
         response_format=CandidateCultureProfile,
         name="candidate_culture_subagent",
