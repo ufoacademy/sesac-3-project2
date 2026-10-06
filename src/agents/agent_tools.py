@@ -103,16 +103,22 @@ def verify_application_quote(
 ) -> str:
     """Verify that a proposed quote occurs in the extracted application text.
 
+    Supports exact matching and fuzzy bigram matching (>=65% similarity)
+    to accommodate natural variations in morphology, particles, and spacing.
+
     Args:
-        quote: The exact candidate quote string to verify.
+        quote: The candidate quote string to verify.
         application_text: Optional text override. If omitted, uses the loaded application text.
     """
     raw_text = application_text or _current_application_text
-    if not raw_text:
+    if not raw_text or not quote:
         return "not_verified"
 
-    normalized_quote = " ".join(quote.split())
-    normalized_text = " ".join(raw_text.split())
-    if normalized_quote and normalized_quote in normalized_text:
-        return "verified"
-    return "not_verified"
+    from src.agents.candidate_analyzer import find_best_matching_quote
+
+    is_valid, _, _ = find_best_matching_quote(
+        quote,
+        raw_text,
+        threshold=0.65,
+    )
+    return "verified" if is_valid else "not_verified"
