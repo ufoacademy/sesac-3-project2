@@ -596,6 +596,15 @@ with analysis_tab:
                         "분석을 완료하지 못했습니다."
                     )
 
+                    if "insufficient_quota" in str(error):
+                        # 코드 문제가 아니라 OpenAI 계정 크레딧 소진(429). 재시도해도 해결되지 않음.
+                        st.warning(
+                            "OpenAI API 크레딧이 모두 소진되었습니다. "
+                            "https://platform.openai.com/settings/organization/billing/ "
+                            "에서 크레딧을 충전하거나 다른 API 키로 .env의 "
+                            "OPENAI_API_KEY를 교체한 뒤 앱을 재시작하세요."
+                        )
+
                     st.exception(error)
 
                 else:
