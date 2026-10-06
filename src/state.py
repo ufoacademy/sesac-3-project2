@@ -22,6 +22,8 @@ class State(TypedDict, total=False):
     application_text: str
     company_data: dict[str, Any]
     company_evidence: list[dict[str, str]]
+    company_analysis_summary: str
+    company_web_search_status: str
     candidate_profile: dict[str, Any]
     fit_result: dict[str, Any]
 

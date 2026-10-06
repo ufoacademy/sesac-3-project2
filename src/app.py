@@ -1,12 +1,14 @@
 from langgraph.graph import END, START, StateGraph
 
 from src.nodes import (
+    analysis_branch_complete_node,
+    analyze_company_node,
     analyze_candidate_node,
     calculate_fit_node,
     extract_pdf_node,
     generate_report_node,
     load_company_node,
-    retrieve_company_evidence_node,
+    join_subagents_node,
     save_result_node,
     validate_input_node,
     validate_result_node,
@@ -35,15 +37,17 @@ def build_graph():
         extract_pdf_node,
     )
 
+    builder.add_node("company_subagent", analyze_company_node)
+    builder.add_node("candidate_subagent", analyze_candidate_node)
     builder.add_node(
-        "retrieve_company_evidence",
-        retrieve_company_evidence_node,
+        "company_subagent_done",
+        analysis_branch_complete_node,
     )
-
     builder.add_node(
-        "analyze_candidate",
-        analyze_candidate_node,
+        "candidate_subagent_done",
+        analysis_branch_complete_node,
     )
+    builder.add_node("join_subagents", join_subagents_node)
 
     builder.add_node(
         "calculate_fit",
@@ -80,24 +84,25 @@ def build_graph():
         "extract_pdf",
     )
 
-    builder.add_edge(
-        "extract_pdf",
-        "retrieve_company_evidence",
-    )
-
-    builder.add_edge(
-        "retrieve_company_evidence",
-        "analyze_candidate",
-    )
+    builder.add_edge("extract_pdf", "company_subagent")
+    builder.add_edge("extract_pdf", "candidate_subagent")
+    builder.add_edge("company_subagent", "company_subagent_done")
 
     builder.add_conditional_edges(
-        "analyze_candidate",
+        "candidate_subagent",
         route_after_candidate_analysis,
         {
-            "retry": "analyze_candidate",
-            "continue": "calculate_fit",
+            "retry": "candidate_subagent",
+            "continue": "candidate_subagent_done",
         },
     )
+
+    builder.add_edge(
+        ["company_subagent_done", "candidate_subagent_done"],
+        "join_subagents",
+    )
+
+    builder.add_edge("join_subagents", "calculate_fit")
 
     builder.add_edge(
         "calculate_fit",

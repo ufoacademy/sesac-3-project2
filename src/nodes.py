@@ -1,27 +1,25 @@
 import hashlib
 from pathlib import Path
 
-from src.candidate_analyzer import analyze_candidate
-from src.company_loader import load_company_profile
-from src.database import (
+import httpx
+
+from src.agents.candidate_analyzer import (
+    mark_invalid_quotes_as_missing,
+    validate_candidate_quotes,
+)
+from src.agents.deep_agents import run_candidate_subagent, run_company_subagent
+from src.services.company_loader import load_company_profile
+from src.services.company_registry import company_profile_path, list_company_ids
+from src.services.company_web_search import search_company_web
+from src.services.database import (
     load_cached_candidate_profile,
     save_analysis,
 )
-from src.pdf_loader import extract_pdf_text
-from src.rag import retrieve
+from src.services.pdf_loader import extract_pdf_text
+from src.services.rag import retrieve
 from src.schemas import CandidateCultureProfile
-from src.scoring import calculate_fit
+from src.agents.scoring import calculate_fit
 from src.state import State
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-COMPANY_IDS = {
-    "toss",
-    "hyundai",
-    "baemin",
-}
 
 
 REQUIRED_ANSWER_IDS = {
@@ -52,9 +50,9 @@ def validate_input_node(
         "selected_company"
     )
 
-    if selected_company not in COMPANY_IDS:
+    if selected_company not in list_company_ids():
         raise ValueError(
-            "토스, 현대차, 배민 중 회사를 선택해야 합니다."
+            "data/companies에 등록된 회사를 선택해야 합니다."
         )
 
     application_path = Path(
@@ -108,12 +106,7 @@ def load_company_node(
 ) -> dict:
     """선택한 회사의 조직문화 JSON을 읽는다."""
 
-    company_path = (
-        PROJECT_ROOT
-        / "data"
-        / "companies"
-        / f"{state['selected_company']}.json"
-    )
+    company_path = company_profile_path(state["selected_company"])
 
     company_profile = load_company_profile(
         company_path
@@ -169,6 +162,36 @@ def retrieve_company_evidence_node(
         "company_evidence": evidence
     }
 
+def analyze_company_node(
+    state: State,
+) -> dict:
+    """Run the company-culture subagent with its RAG tools."""
+
+    web_evidence = []
+    web_search_status = "검색 결과 없음"
+    try:
+        web_evidence = search_company_web(state["selected_company"])
+        if web_evidence:
+            web_search_status = f"외부 근거 {len(web_evidence)}건 검색됨"
+    except (httpx.HTTPError, ValueError) as error:
+        web_search_status = f"외부 검색 실패: {type(error).__name__}"
+
+    result = run_company_subagent(state["selected_company"])
+
+    return {
+        "company_evidence": [
+            {
+                **item.model_dump(),
+                "source_type": "local",
+                "url": None,
+            }
+            for item in result.evidence
+        ] + web_evidence,
+        "company_analysis_summary": result.summary,
+        "company_web_search_status": web_search_status,
+    }
+
+
 def analyze_candidate_node(
     state: State,
 ) -> dict:
@@ -206,7 +229,20 @@ def analyze_candidate_node(
         }
 
     try:
-        profile = analyze_candidate(
+        profile = run_candidate_subagent(
+            state["application_path"],
+            state["application_text"],
+            state["scenario_answers"],
+        )
+
+        profile = mark_invalid_quotes_as_missing(
+            profile,
+            state["application_text"],
+            state["scenario_answers"],
+        )
+
+        validate_candidate_quotes(
+            profile,
             state["application_text"],
             state["scenario_answers"],
         )
@@ -225,6 +261,21 @@ def analyze_candidate_node(
         "candidate_profile": profile.model_dump(),
         "error": None,
         "status": "candidate_analyzed",
+    }
+
+
+def analysis_branch_complete_node(state: State) -> dict:
+    """Barrier marker used by the supervisor after a subagent branch finishes."""
+
+    return {}
+
+
+def join_subagents_node(state: State) -> dict:
+    """Mark that both parallel subagents completed before scoring."""
+
+    return {
+        "status": "subagents_completed",
+        "error": None,
     }
 
 
@@ -336,6 +387,14 @@ def generate_report_node(
         "company_evidence": state.get(
             "company_evidence",
             [],
+        ),
+        "company_analysis_summary": state.get(
+            "company_analysis_summary",
+            "",
+        ),
+        "company_web_search_status": state.get(
+            "company_web_search_status",
+            "",
         ),
     }
 
