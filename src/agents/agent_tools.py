@@ -45,12 +45,35 @@ def extract_application_pdf(path: str) -> str:
     return extract_pdf_text(Path(path))
 
 
+_current_application_text: str = ""
+
+
+def set_current_application_text(text: str) -> None:
+    """Store the extracted application text so tools do not require the LLM to pass thousands of characters."""
+    global _current_application_text
+    _current_application_text = text
+
+
+def get_current_application_text() -> str:
+    """Return the currently cached application text."""
+    global _current_application_text
+    return _current_application_text
+
+
 @tool
 def search_application_evidence(
-    application_text: str,
     query: str,
+    application_text: str | None = None,
 ) -> str:
-    """Find text passages in an extracted application relevant to a query."""
+    """Find text passages in an extracted application relevant to a query.
+
+    Args:
+        query: The search keywords or phrases to look for in the application.
+        application_text: Optional text override. If omitted, uses the loaded application text.
+    """
+    raw_text = application_text or _current_application_text
+    if not raw_text:
+        return "지원서 원문이 설정되지 않았습니다."
 
     normalized_query = {
         token.strip(".,!?()[]{}")
@@ -59,7 +82,7 @@ def search_application_evidence(
     }
     paragraphs = [
         paragraph.strip()
-        for paragraph in application_text.splitlines()
+        for paragraph in raw_text.splitlines()
         if paragraph.strip()
     ]
     matching = [
@@ -76,12 +99,20 @@ def search_application_evidence(
 @tool
 def verify_application_quote(
     quote: str,
-    application_text: str,
+    application_text: str | None = None,
 ) -> str:
-    """Verify that a proposed quote occurs in the extracted application text."""
+    """Verify that a proposed quote occurs in the extracted application text.
+
+    Args:
+        quote: The exact candidate quote string to verify.
+        application_text: Optional text override. If omitted, uses the loaded application text.
+    """
+    raw_text = application_text or _current_application_text
+    if not raw_text:
+        return "not_verified"
 
     normalized_quote = " ".join(quote.split())
-    normalized_text = " ".join(application_text.split())
+    normalized_text = " ".join(raw_text.split())
     if normalized_quote and normalized_quote in normalized_text:
         return "verified"
     return "not_verified"
