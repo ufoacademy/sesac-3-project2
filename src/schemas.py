@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -54,6 +54,37 @@ DIMENSION_IDS = {
 }
 
 
+DEFAULT_FOLLOW_UP_QUESTIONS = {
+    "pace_preference": "빠른 실행과 신중한 검토 중 하나를 선택해야 했던 경험을 말씀해 주세요.",
+    "autonomy_preference": "명확한 지시 없이 스스로 일을 정의하고 진행했던 경험을 말씀해 주세요.",
+    "hierarchy_tolerance": "상급자의 결정에 동의하지 않았을 때 어떻게 대응했는지 말씀해 주세요.",
+    "risk_tolerance": "실패 가능성이 큰 시도를 선택했던 경험과 그 결과를 말씀해 주세요.",
+    "collaboration_style": "동료와 의견이 크게 엇갈렸을 때 어떻게 피드백을 주고받았는지 말씀해 주세요.",
+    "growth_ambition": "높은 성과 압박 속에서 성장했던 경험이나 피했던 경험을 말씀해 주세요.",
+}
+
+TEN_POINT_SCALE_MAX = 10
+FIVE_POINT_SCALE_MAX = 5
+
+
+def _normalize_candidate_score(raw_score: Any) -> Optional[float]:
+    """LLM이 반환한 점수를 1~5 범위로 보정한다.
+
+    - None/빈 값/숫자가 아닌 값 -> None
+    - 5 초과 10 이하 -> 10점 척도로 간주하여 절반으로 환산 (예: 8 -> 4.0)
+    - 그 외 범위 밖 값 -> 1~5로 clamp
+    """
+    if raw_score is None or raw_score == "":
+        return None
+    try:
+        score = float(raw_score)
+    except (TypeError, ValueError):
+        return None
+    if FIVE_POINT_SCALE_MAX < score <= TEN_POINT_SCALE_MAX:
+        score = score / 2
+    return min(max(score, 1.0), float(FIVE_POINT_SCALE_MAX))
+
+
 class CandidateDimension(BaseModel):
     dimension_id: DimensionId
 
@@ -61,29 +92,100 @@ class CandidateDimension(BaseModel):
         default=None,
         ge=1,
         le=5,
+        description="1~5 정수 척도 점수. 10점 척도 금지. status가 missing이면 null.",
     )
 
     confidence: float = Field(
         ge=0,
         le=1,
+        description="근거 확실성 0.0~1.0",
     )
 
-    evidence_quote: Optional[str] = None
+    evidence_quote: Optional[str] = Field(
+        default=None,
+        description="지원서/상황 답변 원문 구절. status가 missing이면 null.",
+    )
 
     evidence_source: Literal[
         "application",
         "scenario",
         "missing",
-    ]
+    ] = Field(description="application, scenario, missing 중 하나")
 
-    reasoning: str
+    reasoning: str = Field(description="점수 판단 이유")
 
     status: Literal[
         "observed",
         "missing",
-    ]
+    ] = Field(description="필수. 근거가 있으면 observed, 없으면 missing")
 
-    follow_up_question: str
+    follow_up_question: str = Field(
+        description="필수. 면접에서 확인할 후속 질문 한 문장",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def fill_omitted_fields(cls, data: Any) -> Any:
+        """비엄격(non-strict) 구조화 출력에서 LLM이 누락/오기한 필드를 보정한다.
+
+        - score: 10점 척도 등 범위 밖 값을 1~5로 환산
+        - status 누락: score/evidence_quote/evidence_source로 추론
+        - evidence_source 누락: 인용이 있으면 application, 없으면 missing
+        - follow_up_question/reasoning/confidence 누락: 안전한 기본값
+        - status가 missing이면 score/evidence_quote를 비우고 출처를 missing으로 정렬
+        """
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        normalized["score"] = _normalize_candidate_score(normalized.get("score"))
+
+        quote = normalized.get("evidence_quote") or None
+        normalized["evidence_quote"] = quote
+
+        source = normalized.get("evidence_source")
+        if source not in ("application", "scenario", "missing"):
+            source = "application" if quote else "missing"
+        normalized["evidence_source"] = source
+
+        has_score_and_quote = (
+            normalized["score"] is not None and quote is not None
+        )
+        status = normalized.get("status")
+        if status not in ("observed", "missing"):
+            status = (
+                "observed"
+                if has_score_and_quote and source != "missing"
+                else "missing"
+            )
+        if status == "observed" and not has_score_and_quote:
+            # observed라고 했지만 점수나 인용이 없으면 근거 부족으로 강등
+            status = "missing"
+        if status == "observed" and source == "missing":
+            normalized["evidence_source"] = "application"
+        normalized["status"] = status
+
+        if status == "missing":
+            normalized["score"] = None
+            normalized["evidence_quote"] = None
+            normalized["evidence_source"] = "missing"
+
+        if not normalized.get("follow_up_question"):
+            normalized["follow_up_question"] = DEFAULT_FOLLOW_UP_QUESTIONS.get(
+                normalized.get("dimension_id"),
+                "이 성향을 보여주는 구체적인 경험을 말씀해 주세요.",
+            )
+
+        if not normalized.get("reasoning"):
+            normalized["reasoning"] = "LLM이 판단 이유를 제공하지 않았습니다."
+
+        try:
+            confidence = float(normalized.get("confidence"))
+        except (TypeError, ValueError):
+            confidence = 0.0 if status == "missing" else 0.5
+        normalized["confidence"] = min(max(confidence, 0.0), 1.0)
+
+        return normalized
 
     @model_validator(mode="after")
     def validate_status_and_evidence(self):
