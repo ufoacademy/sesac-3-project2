@@ -86,25 +86,71 @@ class CandidateAnalyzerTest(unittest.TestCase):
             6,
         )
 
-    def test_quote_not_in_source_is_rejected(self):
-        profile = make_candidate_profile(
-            "원문에 없는 문장"
+    def test_fuzzy_quote_with_slight_rephrasing_is_accepted_and_aligned(self):
+        source = (
+            "저는 스타트업에서 빠르게 MVP를 제작해 배포하고 사용자 피드백을 주 단위로 수집하여 서비스를 개선했습니다."
+        )
+        rephrased_quote = (
+            "빠르게 MVP를 제작하여 배포하고 사용자 피드백을 주단위로 수집해 서비스 개선"
+        )
+        profile = make_candidate_profile(rephrased_quote)
+
+        from src.agents.candidate_analyzer import mark_invalid_quotes_as_missing
+        cleaned_profile = mark_invalid_quotes_as_missing(
+            profile,
+            source,
+            {f"q{i}": f"답변 {i}" for i in range(1, 6)},
         )
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "인용",
-        ):
+        first_dim = cleaned_profile.dimensions[0]
+        # 유사도가 높아 탈락되지 않고 점수(4점)가 온전히 유지되어야 함
+        self.assertEqual(first_dim.status, "observed")
+        self.assertEqual(first_dim.score, 4)
+        # 원본 문장으로 자동 보정(Auto-alignment)되었는지 확인
+        self.assertEqual(first_dim.evidence_quote, source)
+
+    def test_completely_hallucinated_quote_is_marked_as_missing(self):
+        source = "스타트업에서 프론트엔드 리액트 개발을 담당했습니다."
+        hallucinated_quote = (
+            "대규모 분산 트래픽 처리를 위해 카프카와 레디스를 도입하여 최적화했습니다."
+        )
+        profile = make_candidate_profile(hallucinated_quote)
+
+        from src.agents.candidate_analyzer import mark_invalid_quotes_as_missing
+        cleaned_profile = mark_invalid_quotes_as_missing(
+            profile,
+            source,
+            {f"q{i}": f"답변 {i}" for i in range(1, 6)},
+        )
+
+        first_dim = cleaned_profile.dimensions[0]
+        # 원문에 없는 명백한 환각이므로 점수가 보류되어야 함
+        self.assertEqual(first_dim.status, "missing")
+        self.assertIsNone(first_dim.score)
+        self.assertEqual(first_dim.confidence, 0.0)
+
+    def test_validate_candidate_quotes_allows_fuzzy_match(self):
+        source = "사용자 피드백을 주 단위로 수집하여 서비스를 개선했습니다."
+        rephrased_quote = "사용자 피드백 주단위 수집 후 서비스 개선"
+        profile = make_candidate_profile(rephrased_quote)
+
+        # 예외가 발생하지 않고 통과해야 함
+        validate_candidate_quotes(
+            profile,
+            source,
+            {f"q{i}": f"답변 {i}" for i in range(1, 6)},
+        )
+
+    def test_validate_candidate_quotes_rejects_hallucination(self):
+        source = "스타트업에서 개발했습니다."
+        fake_quote = "인공지능 대규모 클러스터를 직접 구축했습니다."
+        profile = make_candidate_profile(fake_quote)
+
+        with self.assertRaises(ValueError):
             validate_candidate_quotes(
                 profile,
-                "실제 자기소개서",
-                {
-                    "q1": "답변 1",
-                    "q2": "답변 2",
-                    "q3": "답변 3",
-                    "q4": "답변 4",
-                    "q5": "답변 5",
-                },
+                source,
+                {f"q{i}": f"답변 {i}" for i in range(1, 6)},
             )
 
 
