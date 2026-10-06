@@ -12,12 +12,13 @@ from src.agents.agent_tools import (
     inspect_company_profile,
     search_application_evidence,
     search_company_documents,
+    set_current_application_text,
     verify_application_quote,
 )
 from src.schemas import CandidateCultureProfile
 
 
-AGENT_TIMEOUT_SECONDS = 45
+AGENT_TIMEOUT_SECONDS = 120
 AGENT_RECURSION_LIMIT = 12
 
 
@@ -30,7 +31,7 @@ def get_company_subagent():
             model="gpt-4o-mini",
             temperature=0,
             timeout=AGENT_TIMEOUT_SECONDS,
-            max_retries=1,
+            max_retries=3,
         ),
         tools=[inspect_company_profile, search_company_documents],
         system_prompt=(
@@ -39,7 +40,9 @@ def get_company_subagent():
             "writing your answer. Search at least three focused queries covering "
             "work style, decision making, risk, collaboration, and growth. "
             "Only include evidence returned by the tools. Return the requested "
-            "CompanyEvidenceResult with concise grounded excerpts."
+            "CompanyEvidenceResult with concise grounded excerpts. "
+            "CRITICAL FORMAT RULE: For each evidence item, 'source' must be a single string "
+            "(e.g. document name or title), NEVER a dictionary or object."
         ),
         response_format=CompanyEvidenceResult,
         name="company_culture_subagent",
@@ -55,7 +58,7 @@ def get_candidate_subagent():
             model="gpt-4o-mini",
             temperature=0,
             timeout=AGENT_TIMEOUT_SECONDS,
-            max_retries=1,
+            max_retries=3,
         ),
         tools=[
             extract_application_pdf,
@@ -64,12 +67,10 @@ def get_candidate_subagent():
         ],
         system_prompt=(
             "You are the applicant-culture subagent. Analyze only the supplied "
-            "application and scenario answers. Use extract_application_pdf to "
-            "verify the PDF text, use search_application_evidence for relevant "
-            "passages, and use verify_application_quote before accepting each "
-            "application quote. Return all six culture dimensions in the exact "
-            "CandidateCultureProfile schema. Do not invent evidence; mark a "
-            "dimension missing when there is not enough support."
+            "application and scenario answers. The application text is already loaded into your tools, "
+            "so when calling verify_application_quote, you only need to provide the 'quote' parameter. "
+            "Return all six culture dimensions in the exact CandidateCultureProfile schema. "
+            "Do not invent evidence; mark a dimension missing when there is not enough support."
         ),
         response_format=CandidateCultureProfile,
         name="candidate_culture_subagent",
@@ -107,6 +108,7 @@ def run_candidate_subagent(
 ) -> CandidateCultureProfile:
     """Run the candidate subagent with extracted PDF text and answers."""
 
+    set_current_application_text(application_text)
     prompt = (
         "Analyze this applicant. The supervisor already extracted the PDF text, "
         "but you may re-extract it with the tool to verify it.\n\n"
