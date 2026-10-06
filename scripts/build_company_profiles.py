@@ -9,18 +9,18 @@ load_dotenv()
 import json
 import os
 import glob
+import argparse
 from src.schemas import CompanyCultureProfile
 from langchain_openai import ChatOpenAI
+from src.services.company_registry import PROJECT_ROOT, list_source_company_ids
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 structured_llm = llm.with_structured_output(CompanyCultureProfile)
 
-COMPANY_IDS = ["toss", "hyundai", "baemin"]
-
 def _load_source_text(company_id: str) -> str:
-    folder = os.path.join("data", "sources", company_id)
+    folder = PROJECT_ROOT / "data" / "sources" / company_id
     blocks = []
-    for path in sorted(glob.glob(os.path.join(folder, "*.txt"))):
+    for path in sorted(folder.glob("*.txt")):
         with open(path, "r", encoding="utf-8") as f:
             blocks.append(f"### {os.path.basename(path)}\n{f.read()}")
     return "\n\n".join(blocks)
@@ -48,18 +48,33 @@ who_leaves_early(조기 퇴사 위험이 높은 성향)와 who_thrives(잘 적�
     return {
         "id": company_id,
         **data,
-        "generated_from": sorted(os.path.basename(p) for p in glob.glob(os.path.join("data", "sources", company_id, "*.txt"))),
+        "generated_from": sorted(
+            path.name
+            for path in (PROJECT_ROOT / "data" / "sources" / company_id).glob("*.txt")
+        ),
         "generation_method": "RAG 소스 문서 + LLM 구조화 추출",
     }
 
-def main():
-    os.makedirs("data/companies", exist_ok=True)
-    for company_id in COMPANY_IDS:
+def main(company_ids: list[str] | None = None):
+    output_directory = PROJECT_ROOT / "data" / "companies"
+    output_directory.mkdir(parents=True, exist_ok=True)
+    company_ids = company_ids or list_source_company_ids()
+    if not company_ids:
+        raise SystemExit("data/sources 아래에 회사별 원본 문서 폴더가 없습니다.")
+
+    for company_id in company_ids:
         profile = build_profile(company_id)
-        path = os.path.join("data", "companies", f"{company_id}.json")
-        with open(path, "w", encoding="utf-8") as f:
+        path = output_directory / f"{company_id}.json"
+        with path.open("w", encoding="utf-8") as f:
             json.dump(profile, f, ensure_ascii=False, indent=2)
         print(f"[생성 완료] {path} (traits: {profile['traits']})")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "company_ids",
+        nargs="*",
+        help="생성할 회사 ID. 생략하면 data/sources 아래의 모든 회사 처리",
+    )
+    args = parser.parse_args()
+    main(args.company_ids)

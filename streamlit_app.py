@@ -1,11 +1,14 @@
+import hashlib
+import tempfile
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from src.app import graph
-from src.database import list_analyses
-from src.pdf_loader import extract_pdf_text
+from src.services.company_registry import get_company_labels
+from src.services.database import list_analyses
+from src.services.pdf_loader import extract_pdf_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -22,12 +25,25 @@ DATABASE_PATH = (
     / "culture_fit.db"
 )
 
+UPLOAD_DIRECTORY = Path(tempfile.gettempdir()) / "culture_fit_uploads"
 
-COMPANY_LABELS = {
-    "toss": "토스",
-    "hyundai": "현대자동차",
-    "baemin": "배달의민족",
-}
+
+def persist_uploaded_pdf(uploaded_file) -> Path:
+    """Persist an uploaded PDF for the current Streamlit process."""
+
+    content = uploaded_file.getvalue()
+    digest = hashlib.sha256(content).hexdigest()[:16]
+    safe_name = Path(uploaded_file.name).name
+    path = UPLOAD_DIRECTORY / f"{digest}_{safe_name}"
+    UPLOAD_DIRECTORY.mkdir(parents=True, exist_ok=True)
+
+    if not path.exists():
+        path.write_bytes(content)
+
+    return path
+
+
+COMPANY_LABELS = get_company_labels()
 
 DIMENSION_LABELS = {
     "pace_preference": "실행 속도",
@@ -354,6 +370,14 @@ def render_analysis_report(
 
     st.subheader("6. 회사 조직문화 근거")
 
+    company_summary = report.get("company_analysis_summary", "")
+    if company_summary:
+        st.info(company_summary)
+
+    web_search_status = report.get("company_web_search_status", "")
+    if web_search_status:
+        st.caption(web_search_status)
+
     company_evidence = report.get(
         "company_evidence",
         [],
@@ -371,12 +395,17 @@ def render_analysis_report(
         )
 
         with st.expander(source):
+            source_type = evidence.get("source_type", "local")
+            st.caption("외부 웹" if source_type == "web" else "등록된 회사 자료")
             st.write(
                 evidence.get(
                     "text",
                     "근거 내용이 없습니다.",
                 )
             )
+            url = evidence.get("url")
+            if source_type == "web" and url:
+                st.link_button("원문 확인", url)
 
 
 st.set_page_config(
@@ -430,6 +459,32 @@ with analysis_tab:
     pdf_paths = sorted(
         PDF_DIRECTORY.glob("*.pdf")
     )
+
+    pdf_input_mode = st.radio(
+        "Applicant PDF source",
+        options=["Existing folder PDF", "Upload a different PDF"],
+        index=0 if pdf_paths else 1,
+        horizontal=True,
+    )
+    selected_pdf = None
+
+    if pdf_input_mode == "Upload a different PDF":
+        uploaded_pdf = st.file_uploader(
+            "Upload a different applicant PDF",
+            type=["pdf"],
+            help=(
+                "The uploaded PDF is stored temporarily and passed through "
+                "the same extraction and analysis pipeline."
+            ),
+        )
+        if uploaded_pdf is not None:
+            selected_pdf = persist_uploaded_pdf(uploaded_pdf)
+            pdf_paths = [selected_pdf]
+            st.caption(f"Selected: {uploaded_pdf.name}")
+
+    if pdf_input_mode == "Upload a different PDF" and selected_pdf is None:
+        st.info("분석할 지원자 PDF를 업로드해 주세요.")
+        st.stop()
 
     if not pdf_paths:
         st.error(
