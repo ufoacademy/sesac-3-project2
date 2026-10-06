@@ -141,17 +141,29 @@ class CandidateAnalyzerTest(unittest.TestCase):
             {f"q{i}": f"답변 {i}" for i in range(1, 6)},
         )
 
-    def test_validate_candidate_quotes_rejects_hallucination(self):
-        source = "스타트업에서 개발했습니다."
-        fake_quote = "인공지능 대규모 클러스터를 직접 구축했습니다."
-        profile = make_candidate_profile(fake_quote)
+    def test_multi_clause_bullet_quote_is_accepted(self):
+        source = (
+            "1. 직무 관련 프로젝트 경험\n"
+            "- 데이터 기반 퍼포먼스 마케팅 캠페인 총괄\n"
+            "- 신규 브랜드 런칭 및 캠페인 기획 및 총괄 : 타깃 고객 분석 및 미디어 믹스 전략 수립\n"
+            "- 지속적인 성장과 역량 개발을 위해 주말마다 데이터 분석 스터디를 주도하며 실무 역량을 강화했습니다."
+        )
+        bullet_quote = (
+            "캠페인 기획 및 총괄하며 지속적인 성장과 역량 개발을 위해 주말 스터디 주도"
+        )
+        profile = make_candidate_profile(bullet_quote)
 
-        with self.assertRaises(ValueError):
-            validate_candidate_quotes(
-                profile,
-                source,
-                {f"q{i}": f"답변 {i}" for i in range(1, 6)},
-            )
+        from src.agents.candidate_analyzer import mark_invalid_quotes_as_missing
+        cleaned_profile = mark_invalid_quotes_as_missing(
+            profile,
+            source,
+            {f"q{i}": f"답변 {i}" for i in range(1, 6)},
+        )
+
+        first_dim = cleaned_profile.dimensions[0]
+        # 여러 줄에 걸친 불릿 인용도 누락/보류되지 않고 점수(4점)가 유지되어야 함
+        self.assertEqual(first_dim.status, "observed")
+        self.assertEqual(first_dim.score, 4)
 
 
 if __name__ == "__main__":
