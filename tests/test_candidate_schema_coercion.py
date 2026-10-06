@@ -100,11 +100,31 @@ class CandidateSchemaCoercionTest(unittest.TestCase):
         self.assertEqual(dimension.score, 5.0)
         self.assertEqual(dimension.confidence, 1.0)
 
-    def test_invalid_dimension_id_is_still_rejected(self):
+    def test_missing_summary_is_auto_generated(self):
         payload = make_failing_llm_payload()
-        payload["dimensions"][0]["dimension_id"] = "unknown_axis"
-        with self.assertRaises(ValidationError):
-            CandidateCultureProfile.model_validate(payload)
+        del payload["summary"]
+
+        profile = CandidateCultureProfile.model_validate(payload)
+        self.assertTrue(profile.summary)
+        self.assertIn("분석 완료", profile.summary)
+        self.assertEqual(len(profile.dimensions), 6)
+
+    def test_missing_dimensions_are_auto_supplemented(self):
+        payload = make_failing_llm_payload()
+        # 6개 중 2개 축 삭제하여 4개 축만 제공
+        payload["dimensions"] = payload["dimensions"][:4]
+
+        profile = CandidateCultureProfile.model_validate(payload)
+        self.assertEqual(len(profile.dimensions), 6)
+        missing_dims = [d for d in profile.dimensions if d.status == "missing"]
+        self.assertEqual(len(missing_dims), 2)
+
+    def test_culture_dimensions_alias_key_is_supported(self):
+        payload = make_failing_llm_payload()
+        payload["culture_dimensions"] = payload.pop("dimensions")
+
+        profile = CandidateCultureProfile.model_validate(payload)
+        self.assertEqual(len(profile.dimensions), 6)
 
 
 if __name__ == "__main__":
