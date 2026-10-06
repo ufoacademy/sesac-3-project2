@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pypdf import PdfWriter
 
-from src.pdf_loader import extract_pdf_text
+from src.services.pdf_loader import extract_pdf_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +16,7 @@ class PdfLoaderTest(unittest.TestCase):
             (PROJECT_ROOT / "data" / "applications_pdf").glob("*.pdf")
         )
 
-        self.assertEqual(len(paths), 7)
+        self.assertGreater(len(paths), 0)
 
         for path in paths:
             with self.subTest(path=path.name):

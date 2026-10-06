@@ -1,6 +1,6 @@
 import unittest
 
-from src.scoring import calculate_fit, dimension_fit
+from src.agents.scoring import calculate_fit, dimension_fit
 
 
 class ScoringTest(unittest.TestCase):

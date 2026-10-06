@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from src.candidate_analyzer import (
+from src.agents.candidate_analyzer import (
     analyze_candidate,
     validate_candidate_quotes,
 )

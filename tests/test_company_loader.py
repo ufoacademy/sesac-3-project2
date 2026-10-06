@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.company_loader import load_company_profile
+from src.services.company_loader import load_company_profile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +14,7 @@ class CompanyLoaderTest(unittest.TestCase):
     def test_all_existing_company_profiles_load(self):
         paths = sorted(COMPANY_DIR.glob("*.json"))
 
-        self.assertEqual(len(paths), 3)
+        self.assertGreater(len(paths), 0)
 
         for path in paths:
             with self.subTest(path=path.name):

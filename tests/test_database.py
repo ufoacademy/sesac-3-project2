@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.database import (
+from src.services.database import (
     list_analyses,
     load_analysis,
     save_analysis,
