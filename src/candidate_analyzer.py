@@ -92,7 +92,8 @@ def analyze_candidate(
 - observed인 경우 score는 1점에서 5점 사이로 작성하세요.
 - evidence_quote는 입력 원문에서 10~80자의 연속된 구절을 그대로 복사하세요.
 - 서로 떨어진 여러 표현을 합치거나 문장을 자연스럽게 고치지 마세요.
-- 적절한 원문 구절이 없으면 해당 문화축을 missing으로 처리하세요.
+- 지원자의 답변과 자기소개서에서 업무 방식의 방향을 판단할 수 없을 때만 missing으로 처리하세요.
+- 특정 단어의 미언급만으로 반대 성향을 단정하지 마세요. 다른 우선순위를 선택한 행동이 분명하면 그 행동을 근거로 판단하세요.
 - 자기소개서 근거는 evidence_source를 application으로 작성하세요.
 - 상황 답변 근거는 evidence_source를 scenario로 작성하세요.
 - 근거가 부족하면 status와 evidence_source를 missing으로 작성하세요.
@@ -110,11 +111,7 @@ def analyze_candidate(
 
     profile = structured_model.invoke(prompt)
 
-    profile = mark_invalid_quotes_as_missing(
-        profile,
-        application_text,
-        answers,
-    )
+
 
     validate_candidate_quotes(
         profile,
