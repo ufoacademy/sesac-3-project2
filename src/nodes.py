@@ -1,12 +1,10 @@
+import json
 import hashlib
 from pathlib import Path
 
 import httpx
 
-from src.agents.candidate_analyzer import (
-    mark_invalid_quotes_as_missing,
-    validate_candidate_quotes,
-)
+from src.agents.candidate_analyzer import validate_candidate_quotes
 from src.agents.deep_agents import run_candidate_subagent, run_company_subagent
 from src.services.company_loader import load_company_profile
 from src.services.company_registry import company_profile_path, list_company_ids
@@ -40,6 +38,7 @@ DIMENSION_IDS = {
     "growth_ambition",
 }
 
+CANDIDATE_ANALYSIS_VERSION = "scenario-priority-v1"
 
 def validate_input_node(
     state: State,
@@ -200,7 +199,6 @@ def analyze_candidate_node(
     application_path = Path(
         state["application_path"]
     )
-
     source_hash = hashlib.sha256(
         application_path.read_bytes()
     ).hexdigest()
@@ -210,6 +208,7 @@ def analyze_candidate_node(
             Path(state["db_path"]),
             source_hash,
             state["scenario_answers"],
+            analysis_version=CANDIDATE_ANALYSIS_VERSION,
         )
     )
 
@@ -235,12 +234,6 @@ def analyze_candidate_node(
             state["scenario_answers"],
         )
 
-        profile = mark_invalid_quotes_as_missing(
-            profile,
-            state["application_text"],
-            state["scenario_answers"],
-        )
-
         validate_candidate_quotes(
             profile,
             state["application_text"],
@@ -262,6 +255,7 @@ def analyze_candidate_node(
         "error": None,
         "status": "candidate_analyzed",
     }
+
 
 
 def analysis_branch_complete_node(state: State) -> dict:
@@ -363,6 +357,25 @@ def generate_report_node(
         application_path.read_bytes()
     ).hexdigest()
 
+    scenario_path = (
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "company_scenario_answers.synthetic.json"
+    )
+    scenario_data = json.loads(
+        scenario_path.read_text(encoding="utf-8")
+    )
+    company_answer_set = next(
+        (
+            company
+            for company in scenario_data["companies"]
+            if company["company_id"] == state["selected_company"]
+        ),
+        None,
+    )
+    if company_answer_set is None:
+        raise ValueError("선택한 회사의 가상 상황 답변이 없습니다.")
+    
     report = {
         "company_id": state["selected_company"],
         "applicant_id": application_path.stem,
@@ -374,6 +387,10 @@ def generate_report_node(
         "scenario_answers": state[
             "scenario_answers"
         ],
+        
+        "company_scenario_answers": company_answer_set["answers"],
+        "company_scenario_source": "synthetic",
+        "candidate_analysis_version": CANDIDATE_ANALYSIS_VERSION,
         "candidate_summary": (
             candidate_profile.summary
         ),

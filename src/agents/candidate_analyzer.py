@@ -110,12 +110,6 @@ def analyze_candidate(
 
     profile = structured_model.invoke(prompt)
 
-    profile = mark_invalid_quotes_as_missing(
-        profile,
-        application_text,
-        answers,
-    )
-
     validate_candidate_quotes(
         profile,
         application_text,

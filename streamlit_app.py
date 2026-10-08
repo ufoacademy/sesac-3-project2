@@ -167,7 +167,55 @@ def render_analysis_report(
     )
 
     st.divider()
-    st.subheader("3. Culture-Fit 분석 결과")
+    st.subheader("3. 같은 상황에서 선택한 업무 방식")
+    st.caption(
+        "회사 답변은 에이전트 설계 실습을 위해 만든 가상 자료입니다."
+    )
+
+    company_answers = {
+        item["question_id"]: item
+        for item in report.get("company_scenario_answers", [])
+    }
+
+    if not company_answers:
+        st.info(
+            "이전 분석에는 회사 상황 답변이 없습니다. "
+            "새 분석을 실행하면 비교 결과가 표시됩니다."
+        )
+
+    for question_id, question in QUESTIONS.items():
+        company_answer = company_answers.get(question_id)
+        if company_answer is None:
+            continue
+
+        with st.expander(
+            f"{question_id.upper()} · {question}",
+            expanded=(question_id == "q1"),
+        ):
+            company_column, candidate_column = st.columns(2)
+
+            with company_column:
+                st.markdown("**회사 답변 · 가상 기준**")
+                st.write(company_answer["answer_text"])
+                st.caption(
+                    "우선순위: "
+                    + " → ".join(company_answer["priority_order"])
+                )
+                st.caption(
+                    "감수하는 선택: "
+                    + company_answer["accepted_tradeoff"]
+                )
+
+            with candidate_column:
+                st.markdown("**지원자 답변**")
+                st.write(
+                    report.get("scenario_answers", {}).get(
+                        question_id,
+                        "답변 없음",
+                    )
+                )
+
+    st.subheader("4. 문화축 점수 · 보조 자료")
 
     with st.container(horizontal=True):
         st.metric(
@@ -215,7 +263,7 @@ def render_analysis_report(
             )
         )
 
-    st.subheader("4. 회사와 지원자 문화축 비교")
+    st.subheader("5. 회사와 지원자 문화축 비교")
 
     chart_data = result_table[
         [
@@ -312,7 +360,7 @@ def render_analysis_report(
                     f"- {dimension_name}"
                 )
 
-    st.subheader("5. 문화축별 판단 근거와 면접 질문")
+    st.subheader("6. 문화축별 판단 근거와 면접 질문")
 
     for row in result_table.to_dict(
         orient="records"
@@ -368,7 +416,7 @@ def render_analysis_report(
                 )
             )
 
-    st.subheader("6. 회사 조직문화 근거")
+    st.subheader("7. 회사 조직문화 근거")
 
     company_summary = report.get("company_analysis_summary", "")
     if company_summary:

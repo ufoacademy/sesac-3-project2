@@ -165,6 +165,22 @@ class CandidateAnalyzerTest(unittest.TestCase):
         self.assertEqual(first_dim.status, "observed")
         self.assertEqual(first_dim.score, 4)
 
+    def test_invalid_quote_is_error_instead_of_missing(self):
+        model = Mock()
+        model.invoke.return_value = make_candidate_profile(
+            "원문에 없는 문장"
+        )
+        answers = {
+            f"q{i}": "실제 답변"
+            for i in range(1, 6)
+        }
+
+        with self.assertRaisesRegex(ValueError, "인용"):
+            analyze_candidate(
+                "실제 자기소개서",
+                answers,
+                model=model,
+            )
 
 if __name__ == "__main__":
     unittest.main()

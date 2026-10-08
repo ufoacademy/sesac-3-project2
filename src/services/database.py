@@ -222,6 +222,7 @@ def load_cached_candidate_profile(
     db_path: Path,
     source_hash: str,
     scenario_answers: dict[str, str],
+    analysis_version: str | None = None,
 ) -> dict | None:
     """같은 PDF와 답변으로 분석한 지원자 프로필을 찾는다."""
 
@@ -250,11 +251,17 @@ def load_cached_candidate_profile(
             row[0]
         )
 
+        if (
+            analysis_version is not None
+            and payload.get("candidate_analysis_version") != analysis_version
+        ):
+            continue
+
         if payload.get(
             "source_hash"
         ) != source_hash:
             continue
-
+        
         saved_answers = (
             _normalize_answers_for_cache(
                 payload.get(
